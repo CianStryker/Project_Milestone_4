@@ -1,0 +1,49 @@
+---
+title: "Project_Milestone_4"
+author: "Cian Stryker"
+date: "10/1/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(reshape2)
+library(plyr)
+library(tidyverse)
+```
+```{r}
+Chinese_FDI <- read_excel("raw-data/China-Global-Investment-Tracker-2019-Spring-FINAL.xlsx", skip = 4)
+Freedom_scores <- read_excel("raw-data/Country and Territory Ratings and Statuses FIW1973-2018.xlsx")
+US_FDI <- read_excel("raw-data/US_FDI.xlsx")
+```
+
+```{r}
+China_FDI <- Chinese_FDI %>%
+    select("Country", "Year", "Quantity in Millions") 
+
+
+colnames(China_FDI)[colnames(China_FDI) == 'Quantity in Millions'] <- 'Chinese_FDIx'
+China_FDI$Chinese_FDIx <- as.numeric(as.character(China_FDI$Chinese_FDIx))
+
+China_FDI2 <- aggregate(Chinese_FDIx ~ Country + Year, data = China_FDI, FUN = sum)
+    
+```
+aggregate(Amount ~ ID + Year, data=D, FUN=sum)
+```{r}
+US_FDIx <- melt(US_FDI, measure.vars = 2:11)
+colnames(US_FDIx)[colnames(US_FDIx) == 'variable'] <- 'Year'
+colnames(US_FDIx)[colnames(US_FDIx) == 'value'] <- 'American_FDI'
+```
+melt(wide, measure.vars = 3:7)
+yyz$b <- as.numeric(as.character(yyz$b))
+```{r}
+data <- merge(China_FDI2, US_FDIx, by = c("Country", "Year"))
+data$American_FDI <- as.numeric(as.character(data$American_FDI))
+
+
+test <- data %>%
+    filter(Country == "Kazakhstan")
+
+ggplot(test, aes(x = Year, y = Chinese_FDIx)) + geom_point()
+```
