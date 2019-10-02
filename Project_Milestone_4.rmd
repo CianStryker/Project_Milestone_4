@@ -18,8 +18,9 @@ library(tidyverse)
 ```
 
 ```{r}
-Chinese_FDI <- read_excel("raw-data/China-Global-Investment-Tracker-2019-Spring-FINAL.xlsx", skip = 4) %>%
+Chinese_FDI <- read_excel("raw-data/Chinese_Investment_and_Construction.xlsx", skip = 4) %>%
   clean_names()
+ 
 ```
 
 
@@ -66,10 +67,22 @@ ggplot(China_1x, aes(x = region, y = y_cum, fill = region)) +
 ```
 
 ```{r}
+ggplot(China_1, aes(x = region, y = quantity_in_millions, fill = region)) + 
+  geom_col() +
+  labs(x=NULL, y=NULL, fill=NULL, title="{closest_state}") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 16)) +
+  transition_states(year, transition_length = 4, state_length = 4) +
+  enter_fade() + 
+  guides(fill = FALSE) +
+  ease_aes('sine-in-out')
+```
+
+```{r}
 China2 <- Chinese_FDI %>% 
     select("year", `quantity_in_millions`, "country", "region") %>%
     filter(region %in% c("West Asia", 
                          "South America",
+                         "Arab Middle East and North Africa",
                          "Sub-Saharan Africa"
                           ))
 
@@ -78,7 +91,7 @@ China2_x <- aggregate(quantity_in_millions ~ country + year + region, data = Chi
 
 ```
 
-```{r}
+```{r BRI Graph}
 
 trial <- China2_x %>%
   complete(year, nesting(country, region), fill = list(quantity_in_millions=0)) %>%
@@ -88,9 +101,11 @@ trial <- China2_x %>%
 
 ggplot(trial, aes(x = country, y = y_cum, size = y_cum, color = region)) +
   geom_point()+
-  labs(x=NULL, y=NULL, fill=NULL, title="{closest_state}") +
+  labs(x= "Countries", y="Foreign Direct Investment", fill= NULL, title="Year: {closest_state}") +
   transition_states(year, transition_length = 2, state_length = 1) +
   enter_fade() + ease_aes('sine-in-out') + 
   theme_bw() +
+  guides(size = FALSE, color = FALSE) +
+  theme(axis.text.x=element_blank()) +
   facet_wrap(~region)
 ```
