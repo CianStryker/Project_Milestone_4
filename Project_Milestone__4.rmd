@@ -1,0 +1,141 @@
+---
+title: 'Project Milestone #4'
+author: "Cian Stryker"
+date: "10/6/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+#Loading all the packages I ended up using for these graphs. Pretty basic stuff, but Idid want to do some signifigant data cleaning in terms of the country names. For that I used the countrycode package. 
+
+library(readxl)
+library(countrycode)
+library(janitor)
+library(reshape2)
+library(gganimate)
+library(tidyverse)
+```
+## Graph 1: Belt and Road Initiative Investment 
+
+My first graph is just to show how Belt and Road Initiative (BRI) funding differes per target region. BRI refers the Chinese Government's plan to create a new Silk Road through major infastructural investments in West Asia, the Middle East, and Africa. Some theorize that South America is also a target region and the investment patter tends to cooroberate this theory. Infastrucutral investment is typically defined by investments in Transportation, Energy, Metals, and Construction (i.e. real estate). So my graph here shows the commulative amount of Chinese FDI investment divided my BRI sector, between the four major target regions. I also animate it to show the growth of investment over time. 
+```{r, Chinese FDI Data Loading, message=FALSE}
+
+#Here I'm loading in my Chinese FDI data and cleaning up the names.I have to skip 4 lines to get rid of the junk lines.
+
+Chinese_FDI <- read_excel("raw-data/Chinese_Investment_and_Construction.xlsx", skip = 4) %>%
+  clean_names()
+
+#Because I end up combining two datasets that have a country name column, it was important to make sure that the country names actaully match eachother. The countrycode package is perfect for making sure country names are uniform betwene data sets. 
+
+Chinese_FDI$country <- countrycode(Chinese_FDI$country, "country.name", "country.name")
+```
+
+```{r, GDP Data Loading, warning=FALSE}
+
+#Here I'm loading in the World Banks's GDP (PPP) data. It has to be cleaned up and modified to match my Chinese FDI data though. First step is skipping the first two junk lines. 
+
+GDP_An <- read_excel("raw-data/GDP.xls", skip = 2) 
+
+#Now I'm shifting it from wide to long form. The issue is that the world bank records year as a row above the rest of the information. I need it to be in column form. The melt command does that, I just had to specify where the body of my data is so I made not of that with measure.vars = 2:15. Then I cleaned up the names. 
+
+GDP2 <- melt(GDP_An, measure.vars = 2:15) %>%
+  clean_names()
+
+#Melt changes your column names, so here I just changed the column names to more recognizable and logical ones. 
+
+colnames(GDP2)[colnames(GDP2) == 'variable'] <- 'year'
+colnames(GDP2)[colnames(GDP2) == 'value'] <- 'GDP_Increase'
+colnames(GDP2)[colnames(GDP2) == 'country_name'] <- 'country'
+
+#Now I'm applying the same countrycode package I used for the Chinese FDI data.
+
+GDP2$country <- countrycode(GDP2$country, "country.name", "country.name") 
+
+#Now I'm just losing the NA data that I don't need for my later graphing. 
+
+GDP_Final <- na.omit(GDP2)
+```
+
+```{r, Graph 1}
+
+#So here I want to compare specific BRI investment across the four target regions of the initiative. So I want to look at only the Middle East, South America, Sub-Saharan Africa, and West Asia. I also only look at energy, real estate, metals, and transport. Just a lot of filtering here. 
+
+China_sector4 <- Chinese_FDI %>%
+    select("country", "region", "year", "sector", "quantity_in_millions") %>%
+    filter(sector %in% c("Energy", "Real estate", "Metals", "Transport")) %>%
+    filter(region %in% c("Arab Middle East and North Africa", "South America", "Sub-Saharan Africa", "West Asia"))
+
+#Here I use aggregate to get the combined amount of FDI funding per country, year, region, and sector. The aggregate command is super useful for this. 
+
+China_sector4x <- aggregate(quantity_in_millions ~ country + year + region + sector, data = China_sector4, FUN = sum)
+
+#Now I want to find out what the cumalative amount of FDI funding is for each country so that when I animate it, we can see FDI investment over time. To do this it's pretty basic, but I did use the nesting() function to make sure that quantity_in_million attachs to the country, region, and sector. Then I create a new variable called ycum_3, whic is just the cummulative amound of FDI investment.
+
+China_sector4y <- China_sector4x %>%
+  complete(year, nesting(country, region, sector), fill = list(quantity_in_millions=0)) %>%
+  arrange(year) %>%
+  group_by(region, country, sector) %>%
+  mutate(y_cum3 = cumsum(quantity_in_millions))
+
+#The graphing isn't that complicated. Essentially I graph by region to show the cummulative amount of FDI funding divided by sector and in adding a transition to it through gganimate, I can show how it changes over time. Everything else is just detail work like labels, fade transition work, and a little bit of x axis work. Things look better if the x labs are tiled downard. 
+
+ggplot(China_sector4y, aes(x = sector, y = y_cum3, fill = region)) +
+  geom_col()+
+  labs(x=NULL, y=NULL, fill=NULL, title="Cumulative Chinese BRI Investment per Year: {closest_state}") +
+  theme(axis.text.x = element_text(angle = 60, hjust = 1, size = 12)) +
+  transition_states(year, transition_length = 2, state_length = 1) +
+  enter_fade() + 
+  guides(fill = FALSE) +
+  ease_aes('sine-in-out')+ 
+  facet_wrap(~region)
+```
+
+## Graph #2: GDP and BRI Investment
+
+My second graph seeks to show what relationship, if any, exists between overall GDP increase and BRI investment. I'm able to show that in general, countries with higher GDPs recieve more Chinese FDI than countries with smaller GDPs. It could also show that countries that recieve more Chinese FDI see stronger economic growth, but I tend to think the first possibility is more likely. In any case, this relationship is interesting. 
+```{r, Graph 2 setting up}
+
+#This graph's purpose is to try and demonstrate the relationship between Chinese BRI investment in the four key regions and overall GDP increase. To begin I just grab the sector, region, and variables I want. 
+
+test <- Chinese_FDI %>%
+  select("country", "quantity_in_millions", "year","sector", "region") %>%
+  filter(region %in% c("Arab Middle East and North Africa", "South America", "Sub-Saharan Africa", "West Asia")) %>%
+  filter(sector %in% c("Energy", "Real estate", "Metals", "Transport")) 
+
+#Much like above, I'm aggregating FDI per country, year, and region. Note: I'm not including sector here because I'm not interested in how the investment differs per sector. By excluding sector here I'm only recording overall FDI that includes all four of the BRI goal sectors. 
+
+test2 <- aggregate(quantity_in_millions ~ country + year + region, data = test, FUN = sum)
+
+#Now I'm finding the cumulative amount of FDI funding just like I did before as well.
+
+test3 <- test2 %>%
+  complete(year, nesting(country, region), fill = list(quantity_in_millions=0)) %>%
+  arrange(year) %>%
+  group_by(region, country) %>%
+  mutate(y_cum4 = cumsum(quantity_in_millions))
+
+#This is the only unqique step really. I'm combining my FDI data set with my GDP data set. After cleaning the GDP data earlier, it's actually pretty easy to combine. 
+
+test4 <- merge(test3, GDP_Final, by = c("year", "country")) 
+
+#Final graph is essentially the same as the prevous graph, but I did have to play around with the breaks a little to make it more readable. Other than that, it's a kinda interesting look at the relationship between cummulative BRI investment and overall GDP growth. Note: I set the size to equal cummulative investment to more clearly show the countries that recieve more funding. 
+```
+
+```{r, Graphing Chunk}
+ggplot(test4, aes(x = y_cum4, size = y_cum4, color = region, y = GDP_Increase)) +
+  geom_point() +
+  labs(x= "Chinese FDI Investment in Millions",
+       y= "GDP (PPP) in Millions",
+       fill=NULL, 
+       title="GDP and Chinese BRI Investment per Year {closest_state}") +
+  transition_states(year, transition_length = 4, state_length = 4) +
+  enter_fade() +
+  scale_x_continuous(breaks = seq(0, 60000, 20000), lim = c(0, 60000)) +
+  scale_y_continuous(breaks = seq(0e+00, 3e+12, 1e+12), lim = c(0e+00, 3e+12)) +
+  guides(size = FALSE, color = FALSE) +
+  ease_aes('sine-in-out')+
+  facet_wrap(~region)
+```
+
